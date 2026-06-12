@@ -13,3 +13,4 @@ __pycache__/
 *.tmp
 .DS_Store
 Thumbs.db
+src/config.h

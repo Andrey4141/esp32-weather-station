@@ -19,14 +19,18 @@
 #include <math.h>
 #include <stdarg.h>
 
+#include "config.h"
+
 #define LOG_BUF_SIZE 8192
 char logBuf[LOG_BUF_SIZE];
 int logBufPos = 0;
+bool logBufWrapped = false;
 
 static void logAdd(const char* s) {
   while (*s) {
     logBuf[logBufPos] = *s++;
     logBufPos = (logBufPos + 1) % LOG_BUF_SIZE;
+    if (logBufPos == 0) logBufWrapped = true;
   }
 }
 static void logAdd(const String& s) { logAdd(s.c_str()); }
@@ -51,8 +55,14 @@ static void logAdd(const String& s) { logAdd(s.c_str()); }
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 
-IPAddress ip(192, 168, 1, 100);
-IPAddress gateway(192, 168, 1, 1);
+#ifndef STATIC_IP
+#define STATIC_IP 192,168,1,100
+#endif
+#ifndef GATEWAY_IP
+#define GATEWAY_IP 192,168,1,1
+#endif
+IPAddress ip(STATIC_IP);
+IPAddress gateway(GATEWAY_IP);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress dns1(77, 88, 8, 8);
 IPAddress dns2(1, 1, 1, 1);
@@ -71,9 +81,19 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 25200);
 unsigned long lastNtpLog = 0;
 
-const float LATITUDE = 55.7558f;
-const float LONGITUDE = 37.6173f;
-const char* DEVICE_MAC = "YOUR_DEVICE_MAC";
+#ifndef LATITUDE_VAL
+#define LATITUDE_VAL 55.7558f
+#endif
+#ifndef LONGITUDE_VAL
+#define LONGITUDE_VAL 37.6173f
+#endif
+const float LATITUDE = LATITUDE_VAL;
+const float LONGITUDE = LONGITUDE_VAL;
+
+#ifndef DEVICE_MAC
+#define DEVICE_MAC "YOUR_DEVICE_MAC"
+#endif
+const char* DEVICE_MAC_VAL = DEVICE_MAC;
 
 const unsigned long DHT_INTERVAL = 30000UL;
 const unsigned long LIGHT_INTERVAL = 30000UL;
@@ -184,127 +204,129 @@ const char index_html[] PROGMEM = R"rawliteral(
   <title>Метеостанция</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial, sans-serif;
-      background: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #e8ecf1;
       margin: 0;
-      padding: 20px;
+      padding: 16px 16px 16px 32px;
     }
     .container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 1200px;
+      align-items: start;
     }
-    .data-panel {
-      flex: 1 1 360px;
+    h1 { text-align: center; color: #333; font-size: 22px; margin: 0 0 16px 0; }
+    .right-col {
       display: flex;
       flex-direction: column;
+      gap: 12px;
     }
-    .map-panel {
-      flex: 1 1 400px;
-      min-height: 400px;
+    .data-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .data-scroll {
-      flex: 1;
-      overflow-y: auto;
-      min-height: 0;
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
+    .map-panel { min-height: 300px; }
     .card {
       background: #ffffff;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     h1 {
       text-align: center;
-      color: #333333;
-      margin-bottom: 20px;
+      color: #333;
+      margin-bottom: 16px;
+      font-size: 22px;
     }
     .sensor-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: #007bff;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a73e8;
+      font-variant-numeric: tabular-nums;
     }
-    .lightning-value {
-      color: #ff4444;
-    }
+    .lightning-value { color: #d93025; }
     #map {
-      height: 100%;
-      min-height: 420px;
+      height: 300px;
       width: 100%;
-      border-radius: 10px;
+      border-radius: 8px;
     }
     .update-info {
-      color: #666666;
-      font-size: 14px;
+      color: #888;
+      font-size: 12px;
       text-align: center;
+      margin-top: 6px;
     }
     .telegram-section {
-      background: #0088cc;
-      color: #ffffff;
-      border-radius: 10px;
-      padding: 15px;
+      background: linear-gradient(135deg,#0088cc,#006699);
+      color: #fff;
+      border-radius: 8px;
+      padding: 14px;
     }
+    .telegram-section h2 { margin: 0 0 8px 0; font-size: 14px; color:#fff; text-transform:none; letter-spacing:0; }
+    .telegram-section p { margin:4px 0; font-size:13px; opacity:.9; }
     .telegram-btn {
       background: #ffffff;
       color: #0088cc;
       border: none;
       border-radius: 6px;
-      padding: 10px 16px;
-      font-weight: bold;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
-      margin-top: 10px;
+      margin-top: 8px;
     }
     .danger-btn {
-      background: #ff6b6b;
-      color: #ffffff;
+      background: #d93025;
+      color: #fff;
     }
-    .pm-warning {
-      color: #e67e22;
-    }
-    .pm-danger {
-      color: #e74c3c;
-    }
-    .pm-good {
-      color: #27ae60;
-    }
-    .console-panel {
-    }
+    .pm-warning { color: #e67e22; }
+    .pm-danger  { color: #d93025; }
+    .pm-good    { color: #188038; }
     .console-box {
       background: #1e1e1e;
       color: #d4d4d4;
-      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-family: 'Cascadia Code','Consolas','Courier New',monospace;
       font-size: 11px;
       padding: 8px;
       border-radius: 6px;
-      max-height: 200px;
       overflow-y: auto;
+      max-height: 200px;
       white-space: pre-wrap;
       word-break: break-all;
     }
-    .console-box::-webkit-scrollbar {
-      width: 8px;
-    }
-    .console-box::-webkit-scrollbar-thumb {
-      background: #444;
-      border-radius: 4px;
-    }
+    .console-box::-webkit-scrollbar { width: 6px; }
+    .console-box::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
     .rain-bar {
-      height: 20px;
-      border-radius: 10px;
+      height: 16px;
+      border-radius: 8px;
       background: #eee;
       overflow: hidden;
-      margin: 8px 0;
+      margin: 6px 0;
     }
     .rain-fill {
       height: 100%;
-      border-radius: 10px;
+      border-radius: 8px;
       transition: width 1s, background 1s;
     }
-    .rain-label {
-      font-size: 14px;
-    }
+    .rain-label { font-size: 13px; }
+    .time-card p { margin:4px 0; font-size:14px; }
   </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -312,12 +334,12 @@ const char index_html[] PROGMEM = R"rawliteral(
     let marker;
 
     function initMap() {
-      map = L.map('map').setView([55.7558, 37.6173], 10);
+      map = L.map('map').setView([55.7558, 37.6173], 12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
       marker = L.marker([55.7558, 37.6173]).addTo(map);
-      marker.bindPopup('<b>Метеостанция</b><br>Точка установки').openPopup();
+      marker.bindPopup('<b>Метеостанция</b>').openPopup();
     }
 
     function pmClass25(val) {
@@ -425,51 +447,53 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h1>Метеостанция</h1>
   <div class="container">
     <div class="data-panel">
-      <div class="card">
-        <p>Текущее время: <span id="time">--:--:--</span></p>
+      <div class="card time-card">
+        <p>Текущее время: <span id="time" style="font-weight:600;color:#1a73e8">--:--:--</span></p>
       </div>
-      <div class="card"><h2>Температура (DHT22)</h2><p class="sensor-value" id="temp-dht">--</p></div>
-      <div class="card"><h2>Влажность (DHT22)</h2><p class="sensor-value" id="humidity-dht">--</p></div>
-      <div class="card"><h2>Освещенность</h2><p class="sensor-value" id="lux">--</p></div>
-      <div class="card"><h2>Температура (BME280)</h2><p class="sensor-value" id="temp-bme">--</p></div>
-      <div class="card"><h2>Влажность (BME280)</h2><p class="sensor-value" id="humidity-bme">--</p></div>
-      <div class="card"><h2>Давление</h2><p class="sensor-value" id="pressure">--</p></div>
-      <div class="card"><h2>Температура (DS18B20)</h2><p class="sensor-value" id="temp-ds">--</p></div>
-      <div class="card"><h2>PM1.0</h2><p class="sensor-value" id="pm1p0">--</p></div>
-      <div class="card"><h2>PM2.5</h2><p class="sensor-value" id="pm2p5">--</p></div>
-      <div class="card"><h2>PM4.0</h2><p class="sensor-value" id="pm4p0">--</p></div>
-      <div class="card"><h2>PM10.0</h2><p class="sensor-value" id="pm10p0">--</p></div>
+      <div class="sensor-grid">
+        <div class="card"><h2>Температура (DHT22)</h2><p class="sensor-value" id="temp-dht">--</p></div>
+        <div class="card"><h2>Влажность (DHT22)</h2><p class="sensor-value" id="humidity-dht">--</p></div>
+        <div class="card"><h2>Освещенность</h2><p class="sensor-value" id="lux">--</p></div>
+        <div class="card"><h2>Температура (BME280)</h2><p class="sensor-value" id="temp-bme">--</p></div>
+        <div class="card"><h2>Влажность (BME280)</h2><p class="sensor-value" id="humidity-bme">--</p></div>
+        <div class="card"><h2>Давление</h2><p class="sensor-value" id="pressure">--</p></div>
+        <div class="card"><h2>Температура (DS18B20)</h2><p class="sensor-value" id="temp-ds">--</p></div>
+        <div class="card"><h2>PM1.0</h2><p class="sensor-value" id="pm1p0">--</p></div>
+        <div class="card"><h2>PM2.5</h2><p class="sensor-value" id="pm2p5">--</p></div>
+        <div class="card"><h2>PM4.0</h2><p class="sensor-value" id="pm4p0">--</p></div>
+        <div class="card"><h2>PM10.0</h2><p class="sensor-value" id="pm10p0">--</p></div>
+      </div>
       <div class="card">
         <h2>Вероятность дождя (1-2ч)</h2>
         <div class="rain-bar"><div class="rain-fill" id="rain-fill" style="width:0%"></div></div>
         <p class="rain-label" id="rain-prob">--%</p>
+      </div>
+    </div>
+    <div class="right-col">
+      <div class="map-panel">
+        <div class="card" style="height:100%;">
+          <h2>Карта</h2>
+          <div id="map"></div>
+          <p class="update-info">Координаты задаются в config.h</p>
+        </div>
+      </div>
+      <div class="telegram-section">
+        <h2>Telegram</h2>
+        <p>Отправка данных вручную или при обнаружении молнии.</p>
+        <button class="telegram-btn" onclick="sendTelegramManual()">Отправить сейчас</button>
+        <hr style="margin:10px 0;border:none;border-top:1px solid rgba(255,255,255,0.25);">
+        <p>Сбросить накопленные данные о молниях.</p>
+        <button class="telegram-btn danger-btn" onclick="resetData()">Сбросить молнии</button>
+      </div>
+      <div class="card">
+        <h2>Консоль</h2>
+        <div class="console-box" id="console-box" style="max-height:200px">Загрузка...</div>
       </div>
       <div class="card">
         <h2>Молнии</h2>
         <p>Расстояние: <span class="sensor-value" id="lightning-distance">--</span></p>
         <p>Энергия: <span class="sensor-value" id="lightning-energy">--</span></p>
         <p>Статус: <span class="sensor-value" id="lightning-status">--</span></p>
-      </div>
-      <div class="telegram-section">
-        <h2>Telegram</h2>
-        <p>Отправка данных вручную или при обнаружении молнии.</p>
-        <button class="telegram-btn" onclick="sendTelegramManual()">Отправить сейчас</button>
-        <hr style="margin:15px 0;border:none;border-top:1px solid rgba(255,255,255,0.35);">
-        <p>Сбросить накопленные данные о молниях.</p>
-        <button class="telegram-btn danger-btn" onclick="resetData()">Сбросить молнии</button>
-      </div>
-      <div class="console-panel">
-        <div class="card">
-          <h2>Консоль</h2>
-          <div class="console-box" id="console-box">Загрузка...</div>
-        </div>
-      </div>
-    </div>
-    <div class="map-panel">
-      <div class="card" style="height:100%;">
-        <h2>Карта</h2>
-        <div id="map"></div>
-        <p class="update-info">Координаты: 55.7558, 37.6173</p>
       </div>
     </div>
   </div>
@@ -797,7 +821,7 @@ void sendToNarodmon() {
     lightningEnergy = 0;
   }
 
-  String cleanMac = String(DEVICE_MAC);
+  String cleanMac = String(DEVICE_MAC_VAL);
   cleanMac.replace(":", "");
 
   String data;
@@ -995,7 +1019,10 @@ void setup() {
   updateAllSensors(true);
 
   ArduinoOTA.setHostname("esp32-weather-station");
-  ArduinoOTA.setPassword("YOUR_OTA_PASSWORD");
+#ifndef OTA_PASSWORD
+#define OTA_PASSWORD "YOUR_OTA_PASSWORD"
+#endif
+  ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]() {
     LOGLN("OTA start");
   });
@@ -1076,7 +1103,7 @@ void setup() {
     String logs;
     logs.reserve(LOG_BUF_SIZE);
     int end = logBufPos;
-    int start = (end + 1) % LOG_BUF_SIZE;
+    int start = logBufWrapped ? (end + 1) % LOG_BUF_SIZE : 0;
     for (int i = start; i != end; i = (i + 1) % LOG_BUF_SIZE) {
       char c = logBuf[i];
       if (c == '\n') logs += "<br>";
