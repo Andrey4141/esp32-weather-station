@@ -19,7 +19,7 @@
 #include <math.h>
 #include <stdarg.h>
 
-#define LOG_BUF_SIZE 4096
+#define LOG_BUF_SIZE 8192
 char logBuf[LOG_BUF_SIZE];
 int logBufPos = 0;
 
@@ -196,11 +196,18 @@ const char index_html[] PROGMEM = R"rawliteral(
       gap: 20px;
     }
     .data-panel {
-      flex: 1 1 320px;
+      flex: 1 1 360px;
+      display: flex;
+      flex-direction: column;
     }
     .map-panel {
-      flex: 2 1 420px;
-      min-height: 500px;
+      flex: 1 1 400px;
+      min-height: 400px;
+    }
+    .data-scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
     }
     .card {
       background: #ffffff;
@@ -263,16 +270,15 @@ const char index_html[] PROGMEM = R"rawliteral(
       color: #27ae60;
     }
     .console-panel {
-      margin-top: 20px;
     }
     .console-box {
       background: #1e1e1e;
       color: #d4d4d4;
       font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
-      font-size: 12px;
-      padding: 10px;
+      font-size: 11px;
+      padding: 8px;
       border-radius: 6px;
-      max-height: 300px;
+      max-height: 200px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
@@ -452,6 +458,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         <p>Сбросить накопленные данные о молниях.</p>
         <button class="telegram-btn danger-btn" onclick="resetData()">Сбросить молнии</button>
       </div>
+      <div class="console-panel">
+        <div class="card">
+          <h2>Консоль</h2>
+          <div class="console-box" id="console-box">Загрузка...</div>
+        </div>
+      </div>
     </div>
     <div class="map-panel">
       <div class="card" style="height:100%;">
@@ -459,12 +471,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div id="map"></div>
         <p class="update-info">Координаты: 55.7558, 37.6173</p>
       </div>
-    </div>
-  </div>
-  <div class="console-panel" style="max-width:900px;margin:20px auto;">
-    <div class="card">
-      <h2>Консоль</h2>
-      <div class="console-box" id="console-box">Загрузка...</div>
     </div>
   </div>
 </body>
